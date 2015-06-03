@@ -33,6 +33,7 @@
     "postcss": "^4.1.11",
     "pretty-bytes": "^2.0.1",
     "rcloader": "^0.1.2",
+    "through2": "^0.6.5",
     "tiny-lr": "^0.1.4",
     "uglify-js": "^2.4.15"
   },

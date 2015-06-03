@@ -6,6 +6,7 @@ var fs = require('fs');
 var extend = require('extend');
 var path = require('path');
 var convertSourceMap = require('convert-source-map');
+var through = require('through2');
 
 module.exports = function (options) {
     options = options || {};
@@ -18,21 +19,29 @@ module.exports = function (options) {
         var output = bygglib.signal();
         var processed = 0;
 
-        var render = function (bundle) {
+        var render = function (bundle, entrypointNode) {
             bundle.watched = [];
             var start = new Date();
-            var entrypoint = path.join(bundle.inputNode.base, bundle.inputNode.name);
 
             var b = browserify(extend({}, options, {
-                basedir: bundle.inputNode.base,
+                basedir: entrypointNode.base,
                 cache: bundle.cache,
-                debug: true,
-                fullPaths: true
+                debug: true
             }));
 
             configure(b);
 
-            b.add(entrypoint);
+            b.add(entrypointNode.path);
+
+            cacheBuilder(bundle, b);
+
+            b.on('file', function (file) {
+                watch(bundle, file);
+            });
+
+            b.on('package', function (pkg) {
+                watch(bundle, path.join(pkg.__dirname, 'package.json'));
+            });
 
             b.bundle(function (err, buf) {
                 if (err) { bygglib.logger.error('browserify', err.message); return; }
@@ -40,10 +49,10 @@ module.exports = function (options) {
                 bundle.watcher.watch(bundle.watched);
 
                 // Result
-                var outputNode = bygglib.tree.cloneNode(bundle.inputNode);
-                var outputPrefix = path.dirname(bundle.inputNode.name) + '/';
+                var outputNode = bygglib.tree.cloneNode(entrypointNode);
+                var outputPrefix = path.dirname(entrypointNode.name) + '/';
                 outputPrefix = (outputPrefix === './') ? '' : outputPrefix;
-                outputNode.name = outputPrefix + path.basename(bundle.inputNode.name, path.extname(bundle.inputNode.name)) + '.js';
+                outputNode.name = outputPrefix + path.basename(entrypointNode.name, path.extname(entrypointNode.name)) + '.js';
                 outputNode.metadata.mime = 'application/javascript';
 
                 var data = buf.toString('utf-8');
@@ -53,7 +62,7 @@ module.exports = function (options) {
                 // Source map
                 var sourceMap = convertSourceMap.fromSource(data).toObject();
                 sourceMap.sources = sourceMap.sources.map(function (source) {
-                    return (source[0] === '/') ? path.relative(bundle.inputNode.base, source) : source;
+                    return (source[0] === '/') ? path.relative(entrypointNode.base, source) : source;
                 });
                 outputNode = bygglib.tree.sourceMap.set(outputNode, sourceMap, { sourceBase: outputPrefix });
 
@@ -70,29 +79,25 @@ module.exports = function (options) {
                     })));
                 }
             });
+         };
 
-            b.on('dep', function (dep) {
-                if (typeof dep.id === 'string') {
-                    bundle.cache[dep.id] = dep;
-                }
-                if (typeof dep.file === 'string') {
-                    watch(dep.file);
-                }
-            });
+        // Stolen from watchify
+        var cacheBuilder = function (bundle, b) {
+            b.pipeline.get('deps').push(through.obj(function(row, enc, next) {
+                var file = row.expose ? b._expose[row.id] : row.file;
+                bundle.cache[file] = {
+                    source: row.source,
+                    deps: extend({}, row.deps)
+                };
+                this.push(row);
+                next();
+            }));
+        };
 
-            b.on('file', function (file) {
-                watch(file);
-            });
-
-            b.on('package', function (pkg) {
-                watch(path.join(pkg.__dirname, 'package.json'));
-            });
-
-            var watch = function (path) {
-                if (bundle.watched.indexOf(path) === -1 && path !== entrypoint) {
-                    bundle.watched.push(path);
-                }
-            };
+        var watch = function (bundle, path) {
+            if (bundle.watched.indexOf(path) === -1 && path !== bundle.entrypoint) {
+                bundle.watched.push(path);
+            }
         };
 
         bundles.forEach(function (bundle) {
@@ -101,7 +106,7 @@ module.exports = function (options) {
 
         tree.nodes.forEach(function (node, index) {
             var bundle = bundles[index] = {
-                inputNode: node,
+                entrypoint: node.path,
                 outputNode: undefined,
                 watcher: bygglib.watcher(),
                 cache: bundles[index] !== undefined ? bundles[index].cache : {},
@@ -112,10 +117,10 @@ module.exports = function (options) {
                 paths.forEach(function (path) {
                     delete bundle.cache[path];
                 });
-                render(bundle);
+                render(bundle, node);
             });
 
-            render(bundle);
+            render(bundle, node);
         });
 
         return output;

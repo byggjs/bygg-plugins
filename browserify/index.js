@@ -31,7 +31,7 @@ module.exports = function (options) {
 
             configure(b);
 
-            b.add(entrypointNode.path);
+            b.add(bundle.entrypoint);
 
             cacheBuilder(bundle, b);
 
@@ -106,7 +106,7 @@ module.exports = function (options) {
 
         tree.nodes.forEach(function (node, index) {
             var bundle = bundles[index] = {
-                entrypoint: node.path,
+                entrypoint: path.join(node.base, node.name),
                 outputNode: undefined,
                 watcher: bygglib.watcher(),
                 cache: bundles[index] !== undefined ? bundles[index].cache : {},

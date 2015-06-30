@@ -85,10 +85,12 @@ module.exports = function (options) {
         var cacheBuilder = function (bundle, b) {
             b.pipeline.get('deps').push(through.obj(function(row, enc, next) {
                 var file = row.expose ? b._expose[row.id] : row.file;
-                bundle.cache[file] = {
-                    source: row.source,
-                    deps: extend({}, row.deps)
-                };
+                if (file !== bundle.entrypoint) {
+                    bundle.cache[file] = {
+                        source: row.source,
+                        deps: extend({}, row.deps)
+                    };
+                }
                 this.push(row);
                 next();
             }));

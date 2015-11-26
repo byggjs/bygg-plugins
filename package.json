@@ -1,7 +1,7 @@
 {
   "name": "bygg-plugins",
   "description": "Collection of plugins for the bygg build system",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "Ole André Vadla Ravnås",
     "email": "oleavr@gmail.com",

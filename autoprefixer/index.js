@@ -1,7 +1,7 @@
 'use strict';
 
 var postcss = require('../postcss');
-var autoprefixer = require('autoprefixer-core');
+var autoprefixer = require('autoprefixer');
 
 var DEFAULT_CONSTRAINTS = ['last 2 versions', 'ie 9'];
 
